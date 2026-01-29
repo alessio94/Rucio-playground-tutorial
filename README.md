@@ -16,7 +16,7 @@ Before starting, ensure you have the following installed:
 
 This tutorial uses a series of numbered scripts that progressively set up and configure your Rucio playground environment. Each script builds on the previous one to create a fully functional test infrastructure.
 
-A Jupyter notebook version of the tutorial (`rucio-playground-tutorial.ipynb`) is also available for interactive use.
+A Jupyter notebook version of the tutorial is also available on [CERNBox](https://cernbox.cern.ch/files/spaces/eos/user/a/alpizzin/Rucio%20Playground) for interactive use on SWAN, or as `rucio-playground-tutorial.ipynb` in this repository.
 
 ### Quick Start
 
