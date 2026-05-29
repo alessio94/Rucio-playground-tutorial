@@ -472,3 +472,112 @@ docker exec dev-rucio-1 update-ca-trust
 # RustFS chapter
 ./qt-replay-rustfs.sh
 ```
+
+---
+
+## Appendix A — What RustFS Adds on Top of the MinIO Setup
+
+After completing the standard MinIO tutorial (Steps 0–7), only the following
+**RustFS-specific additions** are required. Everything else is inherited unchanged.
+
+### New files in this repo
+
+| File | Purpose |
+|---|---|
+| `etc/certs/generate_rustfs.sh` | Generates a self-signed TLS cert (`CN=rustfs`) |
+| `etc/docker/dev/docker-compose-rustfs-override.yml` | Adds the `dev-rustfs-1` service to the stack |
+
+### Changes to existing files
+
+| File | Change |
+|---|---|
+| `qt-000-up.sh` | Added `etc/certs/generate_rustfs.sh` call and `--file …rustfs-override.yml` flag |
+
+### One-off runtime commands (not scripted — must be run manually)
+
+These two commands inject the RustFS cert into the live Rucio container.
+They are not in any script because the cert is generated fresh on every `qt-000-up.sh`
+run and the container must already be running:
+
+```bash
+docker cp etc/certs/rustfs/public.crt \
+  dev-rucio-1:/etc/pki/ca-trust/source/anchors/rustfs.pem
+docker exec dev-rucio-1 update-ca-trust
+```
+
+### New scripts (qt-010 … qt-014)
+
+| Script | What it does | MinIO equivalent |
+|---|---|---|
+| `qt-010-rustfs-bucket.sh` | Creates `rucio` bucket via `mc` | `qt-003-minio-buckets.sh` |
+| `qt-011-rustfs-rse.sh` | Registers `RUSTFS_EU` RSE + distances + `rse-accounts.cfg` | `qt-004-minio-rses.sh` |
+| `qt-012-rustfs-fts-creds.sh` | FTS3 cloud-storage entry + GFAL2 `s3.conf` | `qt-005-minio-fts-creds.sh` |
+| `qt-013-rustfs-tests.sh` | PUT / GET / TPC / presigned-URL tests | `qt-006` + `qt-007` + `qt-008` |
+| `qt-014-rustfs-results.sh` | Compatibility matrix | — |
+
+### Key difference vs MinIO
+
+RustFS TLS uses a **different environment variable** (`RUSTFS_DOMAIN: ""` for path-style +
+`--certs-dir /certs` flag) rather than MinIO's volume-mount convention.  
+The `MC_INSECURE=true` flag is needed for `mc` but **not** for Rucio/GFAL2 — that is why the
+CA trust step is mandatory.
+
+---
+
+## Appendix B — Inspecting RSE Distances
+
+### Single pair
+
+```bash
+docker exec dev-rucio-1 rucio rse distance show MINIO1 RUSTFS_EU
+```
+
+### Full distance matrix (all RSE pairs)
+
+Run this Python snippet inside the Rucio container to dump every registered distance:
+
+```bash
+docker exec -i dev-rucio-1 python3 <<'EOF'
+from rucio.client import Client
+c = Client()
+rses = sorted(r['rse'] for r in c.list_rses())
+rows = []
+for src in rses:
+    for dst in rses:
+        if src == dst:
+            continue
+        d = c.get_distance(src, dst)
+        if d and d[0].get('distance') is not None:
+            rows.append((src, dst, d[0]['distance']))
+
+if not rows:
+    print("No distances registered.")
+else:
+    w = max(len(r[0]) for r in rows)
+    print(f"\n  {'Source':<{w}}   {'Destination':<{w}}   Distance")
+    print(f"  {'-'*w}   {'-'*w}   --------")
+    for src, dst, dist in sorted(rows):
+        print(f"  {src:<{w}}   {dst:<{w}}   {dist}")
+    print()
+EOF
+```
+
+Expected output after a complete setup:
+
+```
+  Source       Destination    Distance
+  -----------  -----------    --------
+  MINIO1       RUSTFS_EU      1
+  MINIO1       XRD3           1
+  MINIO2       RUSTFS_EU      1
+  MINIO2       XRD3           1
+  RUSTFS_EU    MINIO1         1
+  RUSTFS_EU    MINIO2         1
+  RUSTFS_EU    XRD3           1
+  XRD3         MINIO1         1
+  XRD3         MINIO2         1
+  XRD3         RUSTFS_EU      1
+```
+
+> `XRD1` and `XRD2` do not appear because no distances are registered to/from them in
+> this tutorial — they are only used for direct uploads, not FTS3 TPC rules.
