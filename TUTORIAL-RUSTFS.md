@@ -11,6 +11,75 @@ used for MinIO. By the end you will have:
 
 ---
 
+## Architecture
+
+### Container Layout
+
+```mermaid
+graph TB
+    User(["👤 User / CI"])
+
+    subgraph Stack ["Docker Compose Stack  (docker network: dev)"]
+        direction TB
+
+        subgraph Core ["Rucio Core"]
+            RS["**dev-rucio-1**\nRucio Server · CLI · Daemons\n(judge-evaluator, conveyor-*)"]
+            DB[("**dev-ruciodb-1**\nPostgreSQL")]
+            RS --- DB
+        end
+
+        subgraph Transfer ["Transfer Service"]
+            FTS["**dev-fts-1**\nFTS3 · GFAL2"]
+        end
+
+        subgraph S3 ["S3-Compatible Storage  (HTTPS · AWS Signature V4 · path-style)"]
+            M1["**dev-minio-1**\nMINIO1\nhttps://:9001"]
+            M2["**dev-minio-2**\nMINIO2\nhttps://:9002"]
+            RF["**dev-rustfs-1** ⭐\nRUSTFS_EU\nhttps://:9003\nself-signed TLS"]
+        end
+
+        subgraph XRD ["XRootD Storage"]
+            X1["**dev-xrd1**\nXRD1 · xroot://:1094"]
+            X2["**dev-xrd2**\nXRD2 · xroot://:1095"]
+            X3["**dev-xrd3**\nXRD3 · xroot://:1096\n+ https://:1096"]
+        end
+    end
+
+    User -->|"rucio upload / download"| RS
+    RS -->|"GFAL2 · presigned S3 PUT/GET"| M1
+    RS -->|"GFAL2 · presigned S3 PUT/GET"| M2
+    RS -->|"GFAL2 · presigned S3 PUT/GET"| RF
+    RS -->|"GFAL2 · xrootd"| X1
+    RS -->|"GFAL2 · xrootd"| X2
+    RS -->|"GFAL2 · xrootd + https"| X3
+    RS -->|"replication rules → transfer jobs"| FTS
+    FTS -. "TPC (S3 → S3)" .-> M1 & M2 & RF
+    FTS -. "TPC (xrootd)" .-> X1 & X2 & X3
+```
+
+### RSE Transfer Topology (distances)
+
+Rucio uses distances to select source RSEs for replication rules.
+All links below are bidirectional with **distance = 1**.
+
+```mermaid
+graph LR
+    MINIO1 <-->|1| XRD3
+    MINIO2 <-->|1| XRD3
+    MINIO1 <-->|1| RUSTFS_EU:::new
+    MINIO2 <-->|1| RUSTFS_EU:::new
+    XRD3   <-->|1| RUSTFS_EU:::new
+
+    classDef new fill:#d4edda,stroke:#28a745,color:#155724
+```
+
+> **⭐ RUSTFS_EU** is the new node added by this tutorial. All existing RSEs can act as source
+> or destination for TPC transfers to/from it.
+
+---
+
+---
+
 ## Prerequisites
 
 | Requirement | Notes |

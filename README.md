@@ -14,6 +14,37 @@ General information, API/REST description and guides can be found in our [docume
 We provide a [dockerized environment](https://github.com/rucio/rucio/tree/master/etc/docker/dev) which serves both as a demo environment and a development environment.
 It includes all the necessary preconfigured components for multiple storage and transfers developments.
 
+### Playground Architecture
+
+```mermaid
+graph LR
+    subgraph Core
+        R["Rucio\nServer + CLI"]
+        F["FTS3\nTransfer Service"]
+        R -->|"replication rules"| F
+    end
+
+    subgraph "S3 Storage (HTTPS · S3v4)"
+        M1["MINIO1\n:9001"]
+        M2["MINIO2\n:9002"]
+        RF["RUSTFS_EU ⭐\n:9003"]
+    end
+
+    subgraph "XRootD Storage"
+        X1["XRD1 :1094"]
+        X2["XRD2 :1095"]
+        X3["XRD3 :1096"]
+    end
+
+    R -->|"GFAL2 presigned S3"| M1 & M2 & RF
+    R -->|"GFAL2 xrootd"| X1 & X2 & X3
+    F -. "TPC" .-> M1 & M2 & RF & X1 & X2 & X3
+```
+
+> ⭐ **RUSTFS_EU** — Rust-based S3-compatible object store, added alongside MinIO to validate
+> S3 protocol compatibility with Rucio. See [TUTORIAL-RUSTFS.md](TUTORIAL-RUSTFS.md) for the
+> full integration guide.
+
 ## Developers
 
 For information on how to contribute to Rucio, please refer and follow our [CONTRIBUTING](https://rucio.cern.ch/documentation/contributing) guidelines. We strongly recommend to use the [dockerized environment](https://github.com/rucio/rucio/tree/master/etc/docker/dev) for development.
