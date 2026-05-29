@@ -41,7 +41,7 @@ graph LR
     F -. "TPC" .-> M1 & M2 & RF & X1 & X2 & X3
 ```
 
-> ⭐ **RUSTFS_EU** — Rust-based S3-compatible object store, added alongside MinIO to validate
+> **RUSTFS_EU** — Rust-based S3-compatible object store, added alongside MinIO to validate
 > S3 protocol compatibility with Rucio. See [TUTORIAL-RUSTFS.md](TUTORIAL-RUSTFS.md) for the
 > full integration guide.
 
